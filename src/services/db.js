@@ -1,55 +1,50 @@
 import { PGliteWorker } from '@electric-sql/pglite/worker';
 import { live } from '@electric-sql/pglite/live';
 
-const workerCode = `
-import { PGlite } from '@electric-sql/pglite';
-import { worker } from '@electric-sql/pglite/worker';
-import { live } from '@electric-sql/pglite/live';
-
-worker({
-  async init() {
-    return new PGlite({
-      dataDir: 'idb://patient-registry',
-      extensions: { live }
-    });
-  }
-});
-`;
-
-const workerBlob = new Blob([workerCode], { type: 'application/javascript' });
-const workerUrl = URL.createObjectURL(workerBlob);
+let dbInstance = null;
+let initializationPromise = null;
 
 export const initDb = async () => {
-  const db = await PGliteWorker.create(
-    new Worker(workerUrl, { type: 'module' }),
-    {
-      extensions: { live }
-    }
-  );
+  console.log('Starting PGliteWorker initialization...');
 
-  await db.exec(`
-    CREATE TABLE IF NOT EXISTS patients (
-      id SERIAL PRIMARY KEY,
-      first_name TEXT NOT NULL,
-      last_name TEXT NOT NULL,
-      date_of_birth DATE NOT NULL,
-      gender TEXT NOT NULL,
-      email TEXT,
-      phone TEXT,
-      address TEXT,
-      medical_history TEXT,
-      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+  try {
+    console.log('Creating PGliteWorker instance...');
+    
+    const db = await PGliteWorker.create(
+      new Worker(new URL('../workers/pglite-worker.js', import.meta.url), {
+        type: 'module',
+      }),
+      {
+        dataDir: 'idb://patient-registry',
+        extensions: { live }
+      }
     );
-  `);
-
-  return db;
+    
+    console.log('PGliteWorker instance created successfully');
+    
+    db.onLeaderChange(() => {
+      console.log('Leader worker changed, isLeader:', db.isLeader);
+    });
+    
+    return db;
+  } catch (error) {
+    console.error('Failed to initialize database:', error);
+    initializationPromise = null;
+    throw error;
+  }
 };
 
-let dbInstance = null;
-
 export const getDb = async () => {
-  if (!dbInstance) {
-    dbInstance = await initDb();
+  if (dbInstance) {
+    return dbInstance;
   }
-  return dbInstance;
+
+  if (!initializationPromise) {
+    initializationPromise = initDb().then(db => {
+      dbInstance = db;
+      return db;
+    });
+  }
+
+  return initializationPromise;
 };
