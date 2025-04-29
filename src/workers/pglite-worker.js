@@ -26,6 +26,13 @@ worker({
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       );
     `);
+    await db.exec(`
+      CREATE INDEX IF NOT EXISTS idx_patients_created_at ON patients(created_at DESC);
+      CREATE INDEX IF NOT EXISTS idx_patients_first_name ON patients(first_name);
+      CREATE INDEX IF NOT EXISTS idx_patients_last_name ON patients(last_name);
+      CREATE INDEX IF NOT EXISTS idx_patients_email ON patients(email);
+    `);
+    
     
     console.log('Worker: Schema created successfully');
     return db;
