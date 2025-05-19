@@ -53,7 +53,6 @@ export default function PatientList() {
   }, []);
 
 
-  // For search, you can use a normal query or also a live query if you want live search
   const handleSearch = async () => {
     setLoading(true);
     try {
